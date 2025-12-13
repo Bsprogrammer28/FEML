@@ -1,0 +1,8 @@
+numpy
+pandas
+pyvista
+torch
+torchvision
+torchaudio
+torch-geometric
+ansys-mapdl-core
