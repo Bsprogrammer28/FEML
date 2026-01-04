@@ -6,3 +6,17 @@
 
  *** WARNING ***                         CP =       0.000   TIME= 00:00:00
  Altering the abort level key is not recommended.                        
+
+ *** ERROR ***                           CP =       0.000   TIME= 00:00:00
+ The program is unable to open file data\dataset\Simulation_Output\ansys_
+ mesh\cantilever_mesh.cdb.  If the suggestions in the associated error   
+ messages immediately preceding and/or following this error message do   
+ not help resolve the file issue, please send the data leading to this   
+ operation to your technical support provider, along with the I/O error  
+ code of 29 and the system error code of 0, for help in determining the  
+ possible reasons as to why this file could not be opened.               
+
+ *** WARNING ***                         CP =       0.000   TIME= 00:00:00
+ Unable to open file data\dataset\Simulation_Output\ansys_mesh\cantilever
+ _mesh.cdb.                                                              
+  The CDWRITE command is ignored.                                        
