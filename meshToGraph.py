@@ -1,117 +1,76 @@
-"""
-Generate GNN input files from FEA exports.
-
-Produces:
- - GNN_Node_Features_X.npy  (node coordinates, shape (N_nodes,3))
- - GNN_Edge_Index_A.npy     (edge_index shape (2, E))
-
-This script reads the files saved by `dataGen.py` in
-`Data\Simulation_Data\Simulation_Output` and converts the element
-connectivity into an edge index suitable for PyTorch-Geometric.
-
-Usage (from repo root):
-    python scripts\generate_gnn_files.py
-
-Notes:
- - `fixed_node_nums.npy` contains MAPDL node numbers. Edge indices
-   are returned as 0-based indices that align with the order of
-   rows in `fixed_node_coords.npy`.
- - The script emits undirected edges as bidirectional pairs
-   (i->j and j->i) to match PyG expectations.
-"""
-
-import os
 import numpy as np
-from itertools import combinations
+import pandas as pd
+import torch
+from torch_geometric.data import Data
 
+# --- 1. LOAD FIXED MESH DATA ---
+# Using the filenames from your simulation script
+node_coords = np.load("Data\\Simulation_Data\\Simulation_Output\\fixed_node_coords.npy")  # (N, 3) -> x, y, z
+node_nums = np.load("Data\\Simulation_Data\\Simulation_Output\\fixed_node_nums.npy")      # (N,)   -> ANSYS node numbers
+# connectivity = np.load("fixed_connectivity.npy") # Element-node mapping
 
-def ensure_dir(path):
-    os.makedirs(path, exist_ok=True)
+# If you already have the edge_index (from a previous conversion step):
+edge_index_t = torch.tensor(np.load("Data\\Simulation_Data\\Simulation_Output\\GNN_Edge_Index_A.npy"), dtype=torch.long)
+# --- 2. LOAD SIMULATION RESULTS ---
+df_metadata = pd.read_csv("Data\\Simulation_Data\\Simulation_Output\\simulation_input_metadata.csv")
+try:
+    Y_targets = np.load("Data\\Simulation_Data\\Simulation_Output\\all_displacement_tensors.npy")
+except FileNotFoundError:
+    print("Warning: Displacement targets not found. Using dummy targets.")
+    Y_targets = np.zeros((len(df_metadata), node_coords.shape[0], 3))
 
+# --- 3. PHYSICS-AWARE DATA CONVERSION ---
 
-def load_inputs(output_dir):
-    coords_p = os.path.join(output_dir, "fixed_node_coords.npy")
-    nums_p = os.path.join(output_dir, "fixed_node_nums.npy")
-    conn_p = os.path.join(output_dir, "fixed_connectivity.npy")
+def create_physics_aware_dataset(coords, node_ids, metadata, targets, edge_index):
+    data_list = []
+    num_nodes = coords.shape[0]
+    
+    # Pre-calculate Boundary Condition (BC) Flag
+    # Nodes at X=0 are fixed. We use a small tolerance.
+    is_fixed = (coords[:, 0] < 0.001).astype(np.float32).reshape(-1, 1)
+    
+    # Create a mapping from ANSYS Node ID to array index
+    # (Because Applied_Node_ID in CSV refers to the ANSYS number)
+    id_to_idx = {int(node_id): i for i, node_id in enumerate(node_ids)}
+    
+    for i in range(len(metadata)):
+        row = metadata.iloc[i]
+        
+        # A. Get Case-Specific Load Info
+        applied_node_id = int(row['Applied_Node_ID'])
+        load_magnitude = float(row['Load_Magnitude_N'])
+        
+        # B. Create the Sparse Load Feature
+        # Every node has 0 load feature except the one being pulled
+        load_feature = np.zeros((num_nodes, 1), dtype=np.float32)
+        if applied_node_id in id_to_idx:
+            target_idx = id_to_idx[applied_node_id]
+            load_feature[target_idx] = load_magnitude
+        
+        # C. Concatenate Features: [x, y, z, BC_Fixed, Load_Val]
+        # Total input channels = 5
+        x_coords_t = torch.tensor(coords, dtype=torch.float)
+        bc_t = torch.tensor(is_fixed, dtype=torch.float)
+        load_t = torch.tensor(load_feature, dtype=torch.float)
+        
+        x_i = torch.cat([x_coords_t, bc_t, load_t], dim=1)
+        
+        # D. Target Displacement (dx, dy, dz)
+        y_i = torch.tensor(targets[i], dtype=torch.float)
+        
+        # E. Assemble PyG Data Object
+        data = Data(x=x_i, edge_index=edge_index, y=y_i)
+        data_list.append(data)
+        
+        if i % 1000 == 0:
+            print(f"Processed {i} / {len(metadata)} cases...")
 
-    X = np.load(coords_p)
-    node_nums = np.load(nums_p)
-    conn = np.load(conn_p, allow_pickle=True)
-    return X, node_nums, conn
+    return data_list
 
+# Generate the dataset
+gnn_dataset = create_physics_aware_dataset(
+    node_coords, node_nums, df_metadata, Y_targets, edge_index_t
+)
 
-def connectivity_to_edge_index(connectivity, node_num_to_idx):
-    """
-    connectivity: array-like; each element row contains node numbers
-    node_num_to_idx: dict mapping node number -> 0-based index
-
-    Returns edge_index as (2, E) numpy array with bidirectional edges.
-    """
-    edges = set()
-
-    # Normalize connectivity to a list of lists
-    if connectivity.ndim == 2:
-        elems = connectivity.tolist()
-    else:
-        # object array (ragged) -> convert
-        elems = [np.asarray(row).tolist() for row in connectivity]
-
-    for el_nodes in elems:
-        # remove NaNs or zero-length entries
-        el_nodes = [int(n) for n in el_nodes if n is not None]
-        if len(el_nodes) < 2:
-            continue
-        for a, b in combinations(el_nodes, 2):
-            if a not in node_num_to_idx or b not in node_num_to_idx:
-                # skip if mapping not found (shouldn't happen in consistent exports)
-                continue
-            ia = node_num_to_idx[a]
-            ib = node_num_to_idx[b]
-            if ia == ib:
-                continue
-            # store undirected edge as ordered tuple (min, max)
-            if ia < ib:
-                edges.add((ia, ib))
-            else:
-                edges.add((ib, ia))
-
-    # Expand to bidirectional
-    src = []
-    dst = []
-    for a, b in sorted(edges):
-        src.append(a); dst.append(b)
-        src.append(b); dst.append(a)
-
-    edge_index = np.vstack([np.array(src, dtype=np.int64), np.array(dst, dtype=np.int64)])
-    return edge_index
-
-
-def main():
-    base_output_dir = os.path.join("Data", "Simulation_Data")
-    output_dir = os.path.join(base_output_dir, "Simulation_Output")
-
-    if not os.path.isdir(output_dir):
-        raise FileNotFoundError(f"Expected output directory not found: {output_dir}")
-
-    X, node_nums, conn = load_inputs(output_dir)
-
-    print(f"Loaded coords: {X.shape}, node_nums: {node_nums.shape}")
-
-    # Save node features as-is
-    gnn_X_path = os.path.join(output_dir, "GNN_Node_Features_X.npy")
-    np.save(gnn_X_path, X)
-    print(f"Saved GNN node features to: {gnn_X_path}")
-
-    # Build mapping: MAPDL node number -> 0-based index in coords array
-    node_num_to_idx = {int(num): idx for idx, num in enumerate(node_nums)}
-
-    print("Converting connectivity to edge_index (this may take a moment)...")
-    edge_index = connectivity_to_edge_index(conn, node_num_to_idx)
-
-    gnn_edge_path = os.path.join(output_dir, "GNN_Edge_Index_A.npy")
-    np.save(gnn_edge_path, edge_index)
-    print(f"Saved GNN edge index to: {gnn_edge_path} (shape: {edge_index.shape})")
-
-
-if __name__ == "__main__":
-    main()
+print(f"\nCreated {len(gnn_dataset)} data objects.")
+print(f"Node feature shape: {gnn_dataset[0].x.shape}") # Should be (N, 5)
