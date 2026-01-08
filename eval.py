@@ -1,137 +1,165 @@
 import tkinter as tk
 from tkinter import ttk
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-import matplotlib.pyplot as plt
 import torch
-import torchphysics as tp
+import torch.nn as nn
 import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from pathlib import Path
+import traceback
 
-# --- 1. Load Model with 4 Params ---
-Z = tp.spaces.R1('z')
-L = tp.spaces.R1('l')
-A = tp.spaces.R1('a')
-P = tp.spaces.R1('p') # New parameter
-U = tp.spaces.R1('u')
+class BeamFCN(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(4, 128), nn.Tanh(),
+            nn.Linear(128, 128), nn.Tanh(),
+            nn.Linear(128, 128), nn.Tanh(),
+            nn.Linear(128, 128), nn.Tanh(),
+            nn.Linear(128, 1)
+        )
+    
+    def forward(self, x):
+        return self.net(x)
 
-# Input space must match training: Z*L*A*P
-model = tp.models.FCN(input_space=Z*L*A*P, output_space=U, hidden=(128, 128, 128, 128))
-
-try:
-    model.load_state_dict(torch.load("parametric_beam_force.pth"))
-    model.eval()
-    print("4-Parameter Model Loaded Successfully.")
-except FileNotFoundError:
-    print("Error: 'parametric_beam_force.pth' not found. Run the training script first!")
-    exit()
-
-# --- 2. GUI Application ---
-class InstantBeamApp:
+class BeamTestGUI:
     def __init__(self, root):
         self.root = root
-        self.root.title("Instant PINN Simulator (Variable Force)")
-        self.root.geometry("900x700")
-
-        # Input Frame
-        input_frame = ttk.Frame(root, padding="20")
-        input_frame.pack(fill=tk.X)
-
-        # Length Input
-        ttk.Label(input_frame, text="Length (1-5m):").grid(row=0, column=0, padx=5)
-        self.ent_len = ttk.Entry(input_frame, width=10)
-        self.ent_len.insert(0, "3.0")
-        self.ent_len.grid(row=0, column=1, padx=5)
-
-        # Load Position Input
-        ttk.Label(input_frame, text="Load Pos (m):").grid(row=0, column=2, padx=5)
-        self.ent_pos = ttk.Entry(input_frame, width=10)
-        self.ent_pos.insert(0, "2.5")
-        self.ent_pos.grid(row=0, column=3, padx=5)
-
-        # Force Input
-        ttk.Label(input_frame, text="Force (-100 to 100):").grid(row=0, column=4, padx=5)
-        self.ent_force = ttk.Entry(input_frame, width=10)
-        self.ent_force.insert(0, "-50.0")
-        self.ent_force.grid(row=0, column=5, padx=5)
-
-        # Button
-        self.btn_run = ttk.Button(input_frame, text="Predict", command=self.predict)
-        self.btn_run.grid(row=0, column=6, padx=20)
-
-        self.lbl_error = ttk.Label(input_frame, text="", foreground="red")
-        self.lbl_error.grid(row=1, column=0, columnspan=7)
-
-        # Plot
-        self.fig, self.ax = plt.subplots(figsize=(8, 5))
-        self.canvas = FigureCanvasTkAgg(self.fig, master=root)
-        self.canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
-
-    def predict(self):
+        self.root.title("Beam Deflection Tester - FIXED Parameters")
+        self.root.geometry("1000x700")
+        
+        # FIXED PARAMETERS (cannot be changed)
+        self.TEST_LENGTH = 3.0
+        self.TEST_FORCE = 100.0
+        self.TEST_POS = 0.6
+        self.TEST_POINTS = 100
+        
+        self.model = None
+        self.setup_ui()
+        self.load_model()
+    
+    def setup_ui(self):
+        main_frame = ttk.Frame(self.root, padding="10")
+        main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        
+        ttk.Label(main_frame, text="FIXED PARAMETERS", 
+                 font=('Arial', 12, 'bold')).grid(row=0, column=0, columnspan=2, pady=5)
+        
+        ttk.Label(main_frame, text=f"Length (L): {self.TEST_LENGTH} m").grid(row=1, column=0, sticky=tk.W, pady=2)
+        ttk.Label(main_frame, text=f"Force (F): {self.TEST_FORCE} N").grid(row=2, column=0, sticky=tk.W, pady=2)
+        ttk.Label(main_frame, text=f"Force Position (A): {self.TEST_POS} ({self.TEST_POS*self.TEST_LENGTH:.1f} m)").grid(row=3, column=0, sticky=tk.W, pady=2)
+        
+        btn_frame = ttk.Frame(main_frame)
+        btn_frame.grid(row=4, column=0, columnspan=2, pady=10)
+        
+        ttk.Button(btn_frame, text="Compute & Show Profile", 
+                  command=self.compute_profile).pack(side=tk.LEFT, padx=5)
+        ttk.Button(btn_frame, text="Reload Model", 
+                  command=self.load_model).pack(side=tk.LEFT, padx=5)
+        
+        self.status_var = tk.StringVar(value="Loading model...")
+        ttk.Label(main_frame, textvariable=self.status_var).grid(row=5, column=0, columnspan=2, pady=5)
+        
+        self.plot_frame = ttk.Frame(main_frame)
+        self.plot_frame.grid(row=6, column=0, columnspan=2, sticky=(tk.W, tk.E, tk.N, tk.S), pady=10)
+        
+        self.root.columnconfigure(0, weight=1)
+        self.root.rowconfigure(0, weight=1)
+        main_frame.columnconfigure(0, weight=1)
+        main_frame.rowconfigure(6, weight=1)
+    
+    def load_model(self):
         try:
-            # Get Inputs
-            len_val = float(self.ent_len.get())
-            pos_val = float(self.ent_pos.get())
-            force_val = float(self.ent_force.get())
-
-            # Validation
-            if not (1.0 <= len_val <= 5.0):
-                self.lbl_error.config(text="Error: Length must be 1.0 - 5.0")
-                return
-            if not (0.0 <= pos_val <= len_val):
-                self.lbl_error.config(text="Error: Position must be inside beam")
-                return
-            self.lbl_error.config(text="")
-
-            # Prepare Tensors
-            n_points = 200
-            z_np = np.linspace(0, 1, n_points)
-            a_rel = pos_val / len_val
-
-            # Create columns for all 4 inputs
-            z_tensor = torch.tensor(z_np, dtype=torch.float32).reshape(-1, 1)
-            l_tensor = torch.full((n_points, 1), len_val)
-            a_tensor = torch.full((n_points, 1), a_rel)
-            p_tensor = torch.full((n_points, 1), force_val) # Constant force column
-
-            # Combine inputs
-            model_inputs = tp.spaces.Points({
-                Z: z_tensor, 
-                L: l_tensor, 
-                A: a_tensor, 
-                P: p_tensor
-            }, Z*L*A*P)
-
-            # Predict
+            self.status_var.set("Loading model...")
+            self.root.update()
+            
+            model_path = Path("beam_model.pth")
+            if not model_path.exists():
+                self.status_var.set("❌ ERROR: beam_model.pth not found! Run 1dTest.py first.")
+                return False
+            
+            # Create model and load weights
+            self.model = BeamFCN()
+            
+            # Load with strict=False to handle any key mismatches
+            state_dict = torch.load(model_path, map_location='cpu')
+            self.model.load_state_dict(state_dict, strict=False)
+            self.model.eval()
+            
+            self.status_var.set("✅ Model loaded successfully")
+            return True
+            
+        except Exception as e:
+            error_msg = f"❌ Load error: {str(e)}"
+            self.status_var.set(error_msg)
+            print("Full error:", traceback.format_exc())  # Debug info in console
+            self.model = None
+            return False
+    
+    def compute_profile(self):
+        if self.model is None:
+            self.status_var.set("❌ ERROR: Model not loaded!")
+            return
+        
+        try:
+            self.status_var.set("Computing profile...")
+            self.root.update()
+            
+            # Test inputs as plain tensors
+            z_test = torch.linspace(0, 1, self.TEST_POINTS).reshape(-1, 1)
+            l_test = torch.full_like(z_test, float(self.TEST_LENGTH))
+            a_test = torch.full_like(z_test, float(self.TEST_POS))
+            f_test = torch.full_like(z_test, float(self.TEST_FORCE))
+            
+            test_inputs = torch.cat([z_test, l_test, a_test, f_test], dim=1)
+            
             with torch.no_grad():
-                u_pred = model(model_inputs).numpy()
-
+                deflections = self.model(test_inputs).numpy().flatten()
+            
+            # Physical units
+            physical_z = z_test.numpy().flatten() * self.TEST_LENGTH
+            deflections_physical = deflections * self.TEST_LENGTH
+            
+            # Clear plot area
+            for widget in self.plot_frame.winfo_children():
+                widget.destroy()
+            
             # Plot
-            x_real = z_np * len_val
-            self.ax.clear()
-            self.ax.plot(x_real, u_pred, 'r-', linewidth=3, label='Prediction')
+            fig, ax = plt.subplots(figsize=(10, 6))
+            ax.plot(physical_z, deflections_physical, 'b-', linewidth=3, label='PINN Prediction')
             
-            # Dynamic Arrow for Force
-            # Arrow points DOWN for negative force, UP for positive
-            arrow_dy = -1 if force_val < 0 else 1
-            arrow_start = np.max(u_pred) + 0.5 if force_val < 0 else np.min(u_pred) - 0.5
+            force_loc = self.TEST_POS * self.TEST_LENGTH
+            ax.axvline(x=force_loc, color='r', linestyle='--', alpha=0.8, linewidth=2,
+                      label=f'Force: {self.TEST_FORCE}N at {force_loc:.2f}m')
             
-            # Simple visual marker
-            self.ax.annotate(f"Force: {force_val}", 
-                             xy=(pos_val, 0), 
-                             xytext=(pos_val, arrow_dy * 2),
-                             arrowprops=dict(facecolor='blue', shrink=0.05),
-                             ha='center')
-
-            self.ax.set_title(f"Prediction (L={len_val}, Force={force_val})")
-            self.ax.set_xlabel("Position (m)")
-            self.ax.set_ylabel("Deflection")
-            self.ax.grid(True, alpha=0.3)
-            self.ax.legend()
-            self.canvas.draw()
-
-        except ValueError:
-            self.lbl_error.config(text="Invalid numbers")
+            max_idx = np.argmin(deflections_physical)
+            max_defl = deflections_physical[max_idx]
+            max_pos = physical_z[max_idx]
+            ax.plot(max_pos, max_defl, 'go', markersize=10, 
+                   label=f'Max deflection: {max_defl:.4f}m')
+            
+            ax.set_xlabel('Position along beam (m)')
+            ax.set_ylabel('Deflection (m)')
+            ax.set_title(f'Beam Deflection Profile\nL={self.TEST_LENGTH}m, F={self.TEST_FORCE}N @ {force_loc:.2f}m')
+            ax.grid(True, alpha=0.3)
+            ax.legend()
+            ax.set_ylim(min(deflections_physical)*1.1, 0)
+            
+            canvas = FigureCanvasTkAgg(fig, master=self.plot_frame)
+            canvas.draw()
+            canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+            
+            self.status_var.set(f"✅ Max deflection: {max_defl:.4f}m at {max_pos:.2f}m")
+            
+        except Exception as e:
+            error_msg = f"❌ Compute error: {str(e)}"
+            self.status_var.set(error_msg)
+            print("Full compute error:", traceback.format_exc())
+    
+    def run(self):
+        self.root.mainloop()
 
 if __name__ == "__main__":
     root = tk.Tk()
-    app = InstantBeamApp(root)
-    root.mainloop()
+    app = BeamTestGUI(root)
+    app.run()
