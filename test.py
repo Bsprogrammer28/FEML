@@ -1,7 +1,12 @@
-import os
-os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
-os.environ["OMP_NUM_THREADS"] = "1"
-os.environ["MKL_NUM_THREADS"] = "1"
+import pyvista as pv
 
-import torch
-print("Torch OK:", torch.__version__)
+W, H = 0.2, 0.2
+
+clamp = pv.Plane(
+    center=(-0.1, 0, 0),
+    direction=(1, 0, 0),
+    i_size=W,
+    j_size=H
+)
+
+clamp.plot(show_edges=True)

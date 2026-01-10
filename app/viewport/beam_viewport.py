@@ -14,12 +14,63 @@ class BeamViewport(QWidget):
         self.plotter.show_axes()
 
         self.beam_actor = None
-
-    def show_beam(self, mesh):
+        self.clamp_actor = None
+        self.load_actors = []
+    
+    def set_beam(self, beam):
         self.plotter.clear()
         self.beam_actor = self.plotter.add_mesh(
-            mesh, 
+            beam, 
             color="lightgray",
             show_edges=True
         )
         self.plotter.reset_camera()
+        self.plotter.render()
+    
+    def set_clamp(self, clamp):
+        if self.clamp_actor:
+            self.plotter.remove_actor(self.clamp_actor)
+        self.clamp_actor = self.plotter.add_mesh(
+            clamp,
+            color="red",
+            opacity=0.5
+        )
+        self.plotter.render()
+    
+    def set_loads(self, loads):
+        for a in self.load_actors:
+            self.plotter.remove_actor(a)
+        self.load_actors.clear()
+
+        for arrow in loads:
+            actor = self.plotter.add_mesh(
+                arrow,
+                color="blue"
+            )
+            self.load_actors.append(actor)
+        
+        self.plotter.render()
+
+    # def show_beam(self, beam, clamp=None, loads=None):
+    #     self.plotter.clear()
+    #     self.plotter.add_mesh(
+    #         beam, 
+    #         color="lightgray",
+    #         show_edges=True
+    #     )
+
+    #     if clamp is not None:
+    #         self.plotter.add_mesh(
+    #             clamp,
+    #             color="red",
+    #             opacity=0.5
+    #         )
+        
+    #     if loads:
+    #         for arrow in loads:
+    #             self.plotter.add_mesh(
+    #                 arrow,
+    #                 color="blue"
+    #             )
+
+    #     self.plotter.reset_camera()

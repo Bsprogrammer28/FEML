@@ -10,7 +10,7 @@ def create_beam(L, W, H):
 
 def create_clamp_face(W, H):
     face = pv.Plane(
-        center=(0, 0, 0),
+        center=(1e-3, 0, 0),
         direction=(1, 0, 0),
         i_size=W,
         j_size=H
