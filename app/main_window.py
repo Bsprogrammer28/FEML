@@ -1,5 +1,7 @@
 from PyQt5.QtWidgets import QMainWindow
 from PyQt5.QtCore import Qt
+import torch
+import numpy as np
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -9,6 +11,12 @@ class MainWindow(QMainWindow):
 
         self._create_viewport()
         self._create_docks()
+
+        from src.pinn_interface import Beam3DPINN
+        self.pinn_model = Beam3DPINN(
+            model_path="models/beam_model3d.pth",
+            device="cuda" if torch.cuda.is_available() else "cpu")
+        
         self._create_menu()
         self.update_load_preview()
 
@@ -58,7 +66,6 @@ class MainWindow(QMainWindow):
         self.viewport.set_clamp(clamp)
         self.viewport.set_loads([arrow])
 
-
     def _create_docks(self):
         from docks.geometry_dock import GeometryDock
         from docks.load_dock import LoadDock
@@ -78,7 +85,6 @@ class MainWindow(QMainWindow):
 
     def run_preview_results(self):
         from viewport.geometry_factory import create_beam, sample_mesh
-        from src.postprocess import fake_displacement
 
         L = self.geometry_dock.length.value()
         W = self.geometry_dock.width.value()
@@ -87,9 +93,13 @@ class MainWindow(QMainWindow):
         beam = create_beam(L, W, H)
         sampled = sample_mesh(beam, 6000)
 
-        magnitude = self.load_dock.magnitude.value() * 1e-4
+        x = sampled.points[:, 0]/L
+        y = sampled.points[:, 1]/L
+        z = sampled.points[:, 2]/L
 
-        disp = fake_displacement(sampled.points, L, magnitude)
+        pts = np.column_stack([x, y, z])
+
+        disp = self.pinn_model.predict(pts)
 
         self.viewport.show_results(sampled, disp)
 
