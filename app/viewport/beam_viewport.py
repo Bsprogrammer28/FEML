@@ -51,26 +51,22 @@ class BeamViewport(QWidget):
         
         self.plotter.render()
 
-    # def show_beam(self, beam, clamp=None, loads=None):
-    #     self.plotter.clear()
-    #     self.plotter.add_mesh(
-    #         beam, 
-    #         color="lightgray",
-    #         show_edges=True
-    #     )
+    def show_results(self, mesh, displacement, field="Z Disp"):
+        mesh = mesh.copy()
+        mesh["displacement"] = displacement
+        mesh[field] = displacement[:, 2]  
 
-    #     if clamp is not None:
-    #         self.plotter.add_mesh(
-    #             clamp,
-    #             color="red",
-    #             opacity=0.5
-    #         )
+        warped = mesh.warp_by_vector("displacement", factor=1.0)
+
+        self.plotter.clear()
+        self.plotter.add_mesh(
+            warped, 
+            scalars=field,
+            cmap="viridis",
+            show_edges=True
+        )
+
+        self.plotter.show_axes()
+        self.plotter.reset_camera()
+        self.plotter.render()
         
-    #     if loads:
-    #         for arrow in loads:
-    #             self.plotter.add_mesh(
-    #                 arrow,
-    #                 color="blue"
-    #             )
-
-    #     self.plotter.reset_camera()

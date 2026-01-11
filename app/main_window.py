@@ -1,7 +1,6 @@
 from PyQt5.QtWidgets import QMainWindow, QApplication, QDockWidget
 from PyQt5.QtCore import Qt
 
-
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -42,8 +41,24 @@ class MainWindow(QMainWindow):
         ld = self.load_dock
         direction = dir_map[ld.direction.currentText()]
 
+        # self.x.setRange(0.0, 1.0)
+        # self.y.setRange(0.0, 1.0)
+        # self.z.setRange(0.0, 1.0)
+
+        # self.x.setSingleStep(0.05)
+        # self.y.setSingleStep(0.05)
+        # self.z.setSingleStep(0.05)
+
+        xn = ld.x.value()
+        yn = ld.y.value()
+        zn = ld.z.value()
+
+        x_phys = xn * L
+        y_phys = (yn - 0.5) * W
+        z_phys = (zn - 0.5) * H
+
         arrow = create_force_arrow(
-            origin=(L, 0, 0),        # force visible location
+            origin=(x_phys, y_phys, z_phys),        # force visible location
             direction=direction,
             scale=0.15 * L
         )
@@ -55,19 +70,36 @@ class MainWindow(QMainWindow):
     def _create_docks(self):
         from docks.geometry_dock import GeometryDock
         from docks.load_dock import LoadDock
-        # from docks.material_dock import MaterialDock
-        # from docks.results_dock import ResultsDock
+        from docks.results_dock import ResultsDock
+        from docks.material_dock import MaterialDock
 
         self.geometry_dock = GeometryDock(self)
         self.load_dock = LoadDock(self)
-        # self.material_dock = MaterialDock(self)
-        # self.results_dock = ResultsDock(self)
+        self.material_dock = MaterialDock(self)
+        self.results_dock = ResultsDock(self)
 
         self.addDockWidget(Qt.LeftDockWidgetArea, self.geometry_dock)
         self.addDockWidget(Qt.LeftDockWidgetArea, self.load_dock)
-        # self.addDockWidget(Qt.LeftDockWidgetArea, self.material_dock)
+        self.addDockWidget(Qt.LeftDockWidgetArea, self.material_dock)
 
-        # self.addDockWidget(Qt.RightDockWidgetArea, self.results_dock)
+        self.addDockWidget(Qt.RightDockWidgetArea, self.results_dock)
+
+    def run_preview_results(self):
+        from viewport.geometry_factory import create_beam, sample_mesh
+        from src.postprocess import fake_displacement
+
+        L = self.geometry_dock.length.value()
+        W = self.geometry_dock.width.value()
+        H = self.geometry_dock.height.value()
+
+        beam = create_beam(L, W, H)
+        sampled = sample_mesh(beam, 6000)
+
+        magnitude = self.load_dock.magnitude.value() * 1e-4
+
+        disp = fake_displacement(sampled.points, L, magnitude)
+
+        self.viewport.show_results(sampled, disp)
 
     def _create_menu(self):
         menu = self.menuBar()
