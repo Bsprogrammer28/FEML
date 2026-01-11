@@ -47,4 +47,4 @@ class GeometryDock(QDockWidget):
         H = self.height.value()
 
         beam_mesh = create_beam(L, W, H)
-        self.main_window.viewport.show_beam(beam_mesh)
+        self.main_window.viewport.set_beam(beam_mesh)
