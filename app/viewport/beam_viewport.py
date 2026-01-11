@@ -1,6 +1,5 @@
 from pyvistaqt import QtInteractor
 from PyQt5.QtWidgets import QWidget, QVBoxLayout
-import pyvista as pv
 
 class BeamViewport(QWidget):
     def __init__(self, parent=None):
@@ -69,4 +68,3 @@ class BeamViewport(QWidget):
         self.plotter.show_axes()
         self.plotter.reset_camera()
         self.plotter.render()
-        

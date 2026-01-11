@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import QMainWindow, QApplication, QDockWidget
+from PyQt5.QtWidgets import QMainWindow
 from PyQt5.QtCore import Qt
 
 class MainWindow(QMainWindow):
@@ -40,14 +40,6 @@ class MainWindow(QMainWindow):
 
         ld = self.load_dock
         direction = dir_map[ld.direction.currentText()]
-
-        # self.x.setRange(0.0, 1.0)
-        # self.y.setRange(0.0, 1.0)
-        # self.z.setRange(0.0, 1.0)
-
-        # self.x.setSingleStep(0.05)
-        # self.y.setSingleStep(0.05)
-        # self.z.setSingleStep(0.05)
 
         xn = ld.x.value()
         yn = ld.y.value()

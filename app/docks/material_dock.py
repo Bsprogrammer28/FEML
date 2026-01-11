@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import QDockWidget, QWidget, QVBoxLayout, QLabel, QFormLayout, QDoubleSpinBox, QComboBox
+from PyQt5.QtWidgets import QDockWidget, QWidget, QVBoxLayout, QLabel, QDoubleSpinBox, QComboBox
 from PyQt5.QtCore import Qt
 
 class MaterialDock(QDockWidget):
