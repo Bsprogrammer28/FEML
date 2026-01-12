@@ -73,7 +73,6 @@ class MainWindow(QMainWindow):
         self.addDockWidget(Qt.LeftDockWidgetArea, self.geometry_dock)
         self.addDockWidget(Qt.LeftDockWidgetArea, self.load_dock)
         self.addDockWidget(Qt.LeftDockWidgetArea, self.material_dock)
-
         self.addDockWidget(Qt.RightDockWidgetArea, self.results_dock)
 
     def run_preview_results(self):
