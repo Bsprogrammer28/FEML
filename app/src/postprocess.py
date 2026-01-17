@@ -1,8 +1,13 @@
 import numpy as np
+import matplotlib.pyplot as plt
 
-def fake_displacement(points, L, magnitude):
-    x = points[:, 0]
-    w = magnitude*(x/L)**2 * (3 - 2*(x/L))
-    disp = np.zeros_like(points)
-    disp[:, 1] = w
-    return disp
+def save_history(history, path):
+    np.save(path, history)
+
+def plot_loss(history):
+    plt.figure()
+    plt.semilogy(history["iter"], history["loss"])
+    plt.xlabel("Iteration")
+    plt.ylabel("Loss")
+    plt.grid(True)
+    plt.show()

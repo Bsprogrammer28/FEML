@@ -1,43 +1,65 @@
 import torch
+import numpy as np
 import torchphysics as tp
-from torchphysics.problem.spaces import Points
+from torchphysics.problem.spaces.points import Points
 
-class Beam3DPINN():
-    def __init__(self, model_path, device='cpu'):
-        
-        self.device = device
+X = tp.spaces.R1('x')
+Y = tp.spaces.R1('y')
+Z = tp.spaces.R1('z')
+Fx = tp.spaces.R1('fx')
+Fy = tp.spaces.R1('fy')
+Fz = tp.spaces.R1('fz')
 
-        X = tp.spaces.R1('x')
-        Y = tp.spaces.R1('y')
-        Z = tp.spaces.R1('z')
+U = tp.spaces.R1('u')
+V = tp.spaces.R1('v')
+W = tp.spaces.R1('w')
 
-        U = tp.spaces.R1('u')  # deflection
-        V = tp.spaces.R1('v')  # deflection
-        W_ = tp.spaces.R1('w')  # deflection    
+class Beam3DPINN:
+    def __init__(self, model_path: str, device: str = "cpu"):
+        self.device = torch.device(device)
 
         self.model = tp.models.FCN(
-            input_space=X*Y*Z,
-            output_space=U*V*W_,
+            input_space=X * Y * Z * Fx * Fy * Fz,
+            output_space=U * V * W,
             hidden=(128, 128, 128),
             activations=torch.nn.Tanh()
         ).to(self.device)
 
-        self.model.load_state_dict(
-            torch.load(model_path, map_location=self.device)
-        )
-        self.model.to(device)
+        self._load_model(model_path)
         self.model.eval()
-    
-    @torch.no_grad()
-    def predict(self, points):
 
-        pts = torch.tensor(points, dtype=torch.float32, device=self.device) # Nx3
+    def _load_model(self, path):
+        state = torch.load(path, map_location=self.device)
+        self.model.load_state_dict(state)
 
-        tp_points = Points(
-            pts, 
-            space=self.model.input_space
+    def predict(self, points: np.ndarray) -> np.ndarray:
+        """
+        points: (N,3) normalized coordinates
+        returns: (N,3) displacement [u,v,w]
+        """
+
+        if points.shape[1] != 3:
+            raise ValueError("Input points must be (N,3)")
+
+        N = points.shape[0]
+
+        # Zero traction for preview
+        fx = np.zeros((N, 1))
+        fy = np.zeros((N, 1))
+        fz = np.zeros((N, 1))
+
+        data = np.hstack([points, fx, fy, fz])
+        tensor = torch.tensor(
+            data, dtype=torch.float32, device=self.device
         )
 
-        out = self.model(tp_points)
+        pts = Points(
+            tensor,
+            space=X * Y * Z * Fx * Fy * Fz
+        )
 
-        return out.as_tensor.cpu().numpy()
+        with torch.no_grad():
+            out = self.model(pts)
+
+        return out.as_tensor.detach().cpu().numpy()
+

@@ -2,6 +2,7 @@ from PyQt5.QtWidgets import QMainWindow
 from PyQt5.QtCore import Qt
 import torch
 import numpy as np
+from src.pinn_interface import Beam3DPINN
 
 class MainWindow(QMainWindow):
     def __init__(self):
