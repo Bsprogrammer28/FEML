@@ -5,15 +5,12 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 
-
 E = 210e9
 nu = 0.3
 
 mu = E / (2 * (1+nu))
 lam = E * nu / ((1 + nu) * (1 - 2*nu))
 
-
-# 3d Space
 X = tp.spaces.R1('x')
 Y = tp.spaces.R1('y')
 Z = tp.spaces.R1('z')

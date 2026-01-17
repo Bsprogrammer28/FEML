@@ -1,7 +1,3 @@
-# ============================================================
-# 3D Cantilever Beam – PINN vs ANSYS (PyAnsys)
-# ============================================================
-
 import numpy as np
 import torch
 import pyvista as pv
@@ -9,9 +5,6 @@ import pyvista as pv
 from ansys.mapdl.core import launch_mapdl
 import torchphysics as tp
 
-# ------------------------------------------------------------
-# Geometry & material
-# ------------------------------------------------------------
 L, W, H = 1.0, 0.2, 0.2
 E = 210e9
 nu = 0.3
@@ -19,45 +12,33 @@ force_z = -1e5  # N (downward end load)
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
-# ============================================================
-# PART 1: ANSYS SOLUTION (REFERENCE)
-# ============================================================
 
 mapdl = launch_mapdl(run_location="ansys_temp", override=True)
 mapdl.clear()
 mapdl.prep7()
 
-# Material
 mapdl.mp("EX", 1, E)
 mapdl.mp("PRXY", 1, nu)
 
-# Element
 mapdl.et(1, 186)
 
-# Geometry
 mapdl.block(0, L, 0, W, 0, H)
 
-# Mesh
 mapdl.esize(0.05)
 mapdl.vmesh("ALL")
 
-# Boundary conditions
 mapdl.nsel("S", "LOC", "X", 0)
 mapdl.d("ALL", "ALL", 0)
 
-# End load
 mapdl.nsel("S", "LOC", "X", L)
 mapdl.f("ALL", "FZ", force_z / mapdl.get("_n", "NODE", 0, "COUNT"))
 
 mapdl.allsel()
-
-# Solve
 mapdl.finish()
 mapdl.run("/SOLU")
 mapdl.solve()
 mapdl.finish()
 
-# Post-processing
 mapdl.post1()
 nodes = mapdl.mesh.nodes
 
@@ -67,12 +48,6 @@ uz = mapdl.post_processing.nodal_displacement("Z")
 
 disp_ansys = np.column_stack([ux, uy, uz])
 
-
-# ============================================================
-# PART 2: PINN INFERENCE
-# ============================================================
-
-# Rebuild PINN
 X = tp.spaces.R1("x")
 Y = tp.spaces.R1("y")
 Z = tp.spaces.R1("z")
@@ -100,10 +75,6 @@ with torch.no_grad():
 disp_pinn = uvw.cpu().numpy()
 disp_pinn_scaled = disp_pinn * 1e-3
 
-
-# ============================================================
-# PART 3: PYVISTA SIDE-BY-SIDE VISUALIZATION
-# ============================================================
 
 grid = mapdl.mesh.grid
 
@@ -148,10 +119,6 @@ plotter.add_mesh(
 
 plotter.link_views()
 plotter.show()  
-
-# ============================================================
-# PART 4: NUMERIC COMPARISON
-# ============================================================
 
 l2_error = np.linalg.norm(disp_ansys - disp_pinn) / np.linalg.norm(disp_ansys)
 max_error = np.max(np.linalg.norm(disp_ansys - disp_pinn, axis=1))
