@@ -14,7 +14,7 @@
 <br />
 <div align="center">
   <a href="https://github.com/Bsprogrammer28/FEML">
-    <img src="images/iconTran.png" alt="Logo" width="80" height="80">
+    <img src="images/iconTran.png" alt="Logo" width="240" height="240">
   </a>
 
   <h3 align="center">FEML - Finit Element Machine Learning</h3>
@@ -53,7 +53,7 @@
       </ul>
     </li>
     <li><a href="#usage">Usage</a></li>
-    <li><a href="#roadmap">Roadmap</a></li>
+    <!-- <li><a href="#roadmap">Roadmap</a></li> -->
     <li><a href="#contributing">Contributing</a></li>
     <li><a href="#license">License</a></li>
     <li><a href="#contact">Contact</a></li>
@@ -111,7 +111,7 @@ Before working with this project, make sure you have:
    Windows
    ```sh
    python -m venv venv
-   venv\\Scripts\\activate
+   venv/Scripts/activate
    ```
    Linux/ macOS
    ```sh
@@ -130,21 +130,32 @@ Before working with this project, make sure you have:
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ## Usage
-[App]
+[![Application Image][App]]
 **Currently the application is in early stage so most of the buttons are not functional
+
+
 Geometry
 You can change the geometry of the beam using the geometry dock
-[Geo]
+[![Geometry][Geo]]
+
+
 Loading Conditions
 You can setup your loading conditions such as position and magnitude of the force applied to the beam
-[LC]
+![[Loading Conditions][LC]]
+
+
 Visuals
 After setting it up you can see the visuals for the **Boundary Conditions** and **Loading Conditions** in the preview
-[Visual]
+[![Visuals][Visual]]
+
+
 Results
 Once you press on solve the model will predict for the deformation and give you the contour for the following
-[Results]
-[Contour]
+
+[![Results][Results]]
+
+
+[![Contours][Contour]]
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 
@@ -237,8 +248,8 @@ Use this space to list resources you find helpful and would like to give credit 
 [stars-shield]: https://img.shields.io/github/stars/othneildrew/Best-README-Template.svg?style=for-the-badge
 [stars-url]: https://github.com/othneildrew/Best-README-Template/stargazers
 [issues-shield]: https://img.shields.io/github/issues/othneildrew/Best-README-Template.svg?style=for-the-badge
-[issues-url]: https://github.com/othneildrew/Best-README-Template/issues
-[license-shield]: https://img.shields.io/github/license/othneildrew/Best-README-Template.svg?style=for-the-badge -->
+[issues-url]: https://github.com/othneildrew/Best-README-Template/issues -->
+[license-shield]: https://img.shields.io/github/license/othneildrew/Best-README-Template.svg?style=for-the-badge
 [license-url]: https://github.com/Bsprogrammer28/FEML/blob/main/LICENSE
 [linkedin-shield]: https://img.shields.io/badge/-LinkedIn-black.svg?style=for-the-badge&logo=linkedin&colorB=555
 [linkedin-url]: https://www.linkedin.com/in/bhavesh-saad/
