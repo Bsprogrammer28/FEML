@@ -17,7 +17,7 @@
     <img src="images/iconTran.png" alt="Logo" width="240" height="240">
   </a>
 
-  <h3 align="center">FEML - Finit Element Machine Learning</h3>
+  <h3 align="center">FEML - Finite Element Machine Learning</h3>
 
   <p align="center">
     Combining FEM and ML for the best of both worlds!!!
